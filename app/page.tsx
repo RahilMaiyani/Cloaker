@@ -6,6 +6,7 @@ import { Copy, Check, ShieldAlert, FileCode2, Clock, Sparkles, RefreshCw, Settin
 import { PasscodeInput } from "@/components/PasscodeInput";
 import { ShareCardModal } from "@/components/ShareCardModal";
 import { toast } from "@/components/Toast";
+import { addVaultEntry, getVaultEntries, updateVaultEntry } from "@/lib/vault";
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -215,12 +216,29 @@ export default function HomePage() {
       const activeTtl = typeof data.ttl === "number" ? data.ttl : ttl;
       setExpiresAt(Date.now() + activeTtl * 1000);
       setCountdown(activeTtl);
+
+      // Auto-save to Sent Vault
+      addVaultEntry({
+        expiresAt: Date.now() + activeTtl * 1000,
+        ttl: activeTtl,
+        burnOnRead,
+        hasPasscode: passcode.length === 6,
+        mode,
+        title: creatorSubject.trim() || (mode === "file" && selectedFile ? selectedFile.name : `Secret Note (${lineCount} ${lineCount === 1 ? "line" : "lines"})`),
+        fileSize: mode === "file" && selectedFile ? selectedFile.size : undefined,
+        linkCount: data.linkIds.length,
+        linkIds: data.linkIds,
+        urls: links,
+        revocationToken: data.revocationToken || "",
+      });
+
       setPasscode("");
       toast.success(
         data.linkIds.length > 1
           ? `${data.linkIds.length} zero-knowledge links generated!`
           : "Zero-knowledge secret link generated!"
       );
+
     } catch (err: unknown) {
       toast.error(
         err instanceof Error ? err.message : "Encryption or storage failed. Please check size bounds."
@@ -255,12 +273,22 @@ export default function HomePage() {
         throw new Error(data.error || "Revocation failed");
       }
       toast.success("Secret revoked and permanently destroyed from server.");
+
+      const currentVault = getVaultEntries();
+      const match = currentVault.find((e) =>
+        e.linkIds.some((id) => generatedLinkIds.includes(id))
+      );
+      if (match) {
+        updateVaultEntry(match.id, { status: "revoked", lastCheckedAt: Date.now() });
+      }
+
       setGeneratedLinkIds([]);
       setGeneratedLinks([]);
       setRevocationToken(null);
       setPasscode("");
       setExpiresAt(null);
       setCountdown(null);
+
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Link revocation failed.");
     } finally {

@@ -2,10 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ShieldCheck, Info, X, KeyRound, EyeOff, Zap } from "lucide-react";
+import { ShieldCheck, Info, X, KeyRound, EyeOff, Zap, History } from "lucide-react";
+import { useSentVault } from "@/lib/vault";
+import { SentVaultModal } from "./SentVaultModal";
 
 export default function Navbar() {
   const [showInfo, setShowInfo] = useState(false);
+
+  const [showVault, setShowVault] = useState(false);
+  const { activeCount } = useSentVault();
 
   return (
     <>
@@ -14,7 +19,6 @@ export default function Navbar() {
           {/* Brand Logo & Emblem */}
           <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group">
             <div className="w-8 h-8 rounded-xl bg-neutral-900/90 border border-neutral-800 flex items-center justify-center group-hover:border-emerald-500/50 group-hover:bg-neutral-900 transition-all duration-200">
-              {/* Minimalist Geometric 'C' Emblem */}
               <svg
                 className="w-4 h-4 text-emerald-400 transition-transform duration-200 group-hover:scale-110"
                 viewBox="0 0 24 24"
@@ -51,6 +55,22 @@ export default function Navbar() {
               <span className="text-neutral-500">In-Memory</span>
             </div>
 
+            {/* Sent Vault Button */}
+            <button
+              type="button"
+              onClick={() => setShowVault(true)}
+              className="flex items-center gap-1.5 text-[11px] font-mono text-neutral-300 hover:text-white bg-neutral-900/90 hover:bg-neutral-800/90 px-2.5 sm:px-3 py-1.5 rounded-xl border border-neutral-800 hover:border-neutral-700 transition cursor-pointer active:scale-95"
+              title="Sent Secrets Vault & History"
+            >
+              <History className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Vault</span>
+              {activeCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-emerald-500 text-neutral-950 font-bold text-[9px] flex items-center justify-center -mr-1">
+                  {activeCount}
+                </span>
+              )}
+            </button>
+
             {/* Security Info Trigger Button */}
             <button
               type="button"
@@ -64,6 +84,9 @@ export default function Navbar() {
           </div>
         </div>
       </header>
+
+      {/* Sent Vault Drawer / Modal */}
+      <SentVaultModal isOpen={showVault} onClose={() => setShowVault(false)} />
 
       {/* Security Architecture Modal */}
       {showInfo && (
@@ -88,18 +111,8 @@ export default function Navbar() {
                 <KeyRound className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                 <div>
                   <div className="font-semibold text-neutral-200">URL Fragment Key Isolation</div>
-                  <div className="text-[11px] text-neutral-400">
-                    The 256-bit AES key lives exclusively in the URL fragment (<code className="text-emerald-400">#k=...</code>), which is never transmitted over HTTP to our servers.
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-neutral-900/60 border border-neutral-800/60">
-                <EyeOff className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-semibold text-neutral-200">Client-Side Only Processing</div>
-                  <div className="text-[11px] text-neutral-400">
-                    Encryption and decryption execute via native W3C WebCrypto in your browser memory before any payload leaves your machine.
+                  <div className="text-neutral-400 text-[11px] mt-0.5">
+                    The AES-256 decryption key is placed strictly in the URL fragment (`#k=...`). Browsers never transmit hash fragments over HTTP, ensuring servers and proxies never see the key.
                   </div>
                 </div>
               </div>
@@ -107,21 +120,23 @@ export default function Navbar() {
               <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-neutral-900/60 border border-neutral-800/60">
                 <Zap className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-neutral-200">Atomic Self-Destruction</div>
-                  <div className="text-[11px] text-neutral-400">
-                    Reading a burn-on-read note invokes an atomic purge command on our Redis storage, permanently deleting ciphertext records.
+                  <div className="font-semibold text-neutral-200">In-Memory Decryption & Atomic Burn</div>
+                  <div className="text-neutral-400 text-[11px] mt-0.5">
+                    Decryption occurs entirely in client RAM. Single-use secrets are atomically destroyed in Redis upon first read.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-neutral-900/60 border border-neutral-800/60">
+                <EyeOff className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold text-neutral-200">Anti-Brute Force PIN Gate</div>
+                  <div className="text-neutral-400 text-[11px] mt-0.5">
+                    Passcode-protected secrets enforce a 3-strike self-destruct policy, preventing automated brute-force attempts.
                   </div>
                 </div>
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowInfo(false)}
-              className="w-full h-10 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold rounded-xl text-xs transition cursor-pointer"
-            >
-              Understood
-            </button>
           </div>
         </div>
       )}
