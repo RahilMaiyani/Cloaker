@@ -13,7 +13,7 @@ import {
   Unlock,
   KeyRound,
   AlertTriangle,
-  User, Mail, Tag,
+  User, Tag,
   FileText,
   FileCode2,
   ChevronDown
@@ -32,7 +32,7 @@ interface DecryptedFile {
   name: string;
   size: number;
   mimeType: string;
-  data: string; // base64
+  data: string;
 }
 
 export default function RevealPage() {
@@ -55,8 +55,6 @@ export default function RevealPage() {
   const [shake, setShake] = useState(false);
 
   const [creator, setCreator] = useState<{ name?: string; email?: string; subject?: string } | null>(null);
-
-
 
   useEffect(() => {
     async function checkMetadata() {
@@ -160,10 +158,7 @@ export default function RevealPage() {
       } else {
         setSecretContent(plainText);
       }
-
-      if (burnOnRead) {
-        window.history.replaceState(null, "", window.location.pathname);
-      }
+      window.history.replaceState(null, "", window.location.pathname);
     } catch (err: unknown) {
       setError(
         err instanceof Error
@@ -426,49 +421,21 @@ export default function RevealPage() {
               {/* Optional Inline Preview for Configs/Code */}
               {filePreviewText !== null && (
                 <div className="border-t border-neutral-800/80">
-                  <div className="w-full px-3.5 sm:px-4 py-2.5 bg-neutral-900/80 text-neutral-300 text-xs font-semibold flex items-center justify-between border-b border-neutral-800/60 select-none">
-                    <button
-                      type="button"
-                      onClick={() => setShowPreview((p) => !p)}
-                      className="flex items-center gap-2 hover:text-white transition cursor-pointer"
-                    >
-                      <FileCode2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      <span>Preview File Contents</span>
-                      <span className="text-[11px] text-neutral-500 font-mono font-normal">
-                        ({filePreviewText.split("\n").length} {filePreviewText.split("\n").length === 1 ? "line" : "lines"})
-                      </span>
-                      <ChevronDown className={`w-3.5 h-3.5 text-neutral-400 transition-transform ${showPreview ? "rotate-180" : ""}`} />
-                    </button>
-
-                    {showPreview && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(filePreviewText);
-                          toast.success("File preview copied to clipboard");
-                        }}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-[11px] font-semibold transition cursor-pointer active:scale-95"
-                        title="Copy preview text"
-                      >
-                        <Copy className="w-3 h-3 text-emerald-400" />
-                        <span>Copy</span>
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPreview((p) => !p)}
+                    className="w-full px-4 py-2.5 bg-neutral-900/60 hover:bg-neutral-900 text-neutral-300 text-xs font-semibold flex items-center justify-between transition cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2">
+                      <FileCode2 className="w-3.5 h-3.5 text-emerald-400" />
+                      Preview File Contents
+                    </span>
+                    <ChevronDown className={`w-4 h-4 text-neutral-400 transition-transform ${showPreview ? "rotate-180" : ""}`} />
+                  </button>
 
                   {showPreview && (
-                    <div className="h-[55dvh] sm:h-[65dvh] min-h-[380px] max-h-[78dvh] overflow-auto font-mono text-xs sm:text-sm leading-6 scheme-dark max-w-full bg-neutral-950">
-                      <div className="flex min-w-full w-max min-h-full">
-                        <div className="sticky left-0 z-10 w-10 sm:w-12 py-3 sm:py-3.5 bg-neutral-950 border-r border-neutral-800 text-neutral-600 select-none text-right pr-2 sm:pr-3.5 font-medium shrink-0">
-                          {filePreviewText.split("\n").map((_, i) => (
-                            <div key={i}>{i + 1}</div>
-                          ))}
-                        </div>
-
-                        <pre className="flex-1 p-3 sm:p-3.5 text-neutral-200 whitespace-pre selection:bg-emerald-950 selection:text-emerald-300 font-mono">
-                          {filePreviewText}
-                        </pre>
-                      </div>
+                    <div className="max-h-72 overflow-auto font-mono text-xs p-4 bg-neutral-950 text-neutral-200 whitespace-pre leading-5 border-t border-neutral-800/60">
+                      {filePreviewText}
                     </div>
                   )}
                 </div>

@@ -25,9 +25,12 @@ export async function POST(
     const { masterId, burnOnRead, passcodeHash, passcodeSalt } = linkData;
 
     if (passcodeHash) {
-      const computeHash = passcode && passcodeSalt ? crypto.createHash("sha256").update(passcode + passcodeSalt).digest("hex") : null;
+      const computeHash = passcode && passcodeSalt ? crypto.createHash("sha256").update(passcode + passcodeSalt).digest("hex") : "";
 
-      if (!passcode || computeHash != passcodeHash) {
+      const computeBuf = Buffer.from(computeHash, 'utf-8');
+      const passcodeBuf = Buffer.from(passcodeHash, 'utf-8');
+
+      if (!passcode || !crypto.timingSafeEqual(computeBuf, passcodeBuf)) {
         const strikes = (linkData.strikes || 0) + 1;
         linkData.strikes = strikes;
 
