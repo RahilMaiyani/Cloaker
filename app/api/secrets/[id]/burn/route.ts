@@ -30,7 +30,7 @@ export async function POST(
       const computeBuf = Buffer.from(computeHash, 'utf-8');
       const passcodeBuf = Buffer.from(passcodeHash, 'utf-8');
 
-      if (!passcode || !crypto.timingSafeEqual(computeBuf, passcodeBuf)) {
+      if (!passcode || computeBuf.length !== passcodeBuf.length || !crypto.timingSafeEqual(computeBuf, passcodeBuf)) {
         const strikes = (linkData.strikes || 0) + 1;
         linkData.strikes = strikes;
 

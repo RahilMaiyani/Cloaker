@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { encryptSecret, hashPasscode, generateSalt } from "@/lib/crypto";
 import { Copy, Check, ShieldAlert, FileCode2, Clock, Sparkles, RefreshCw, Settings2, ChevronDown, Plus, Minus, Flame, Hourglass, Layers, KeyRound, User, Mail, Tag, QrCode, Paperclip, UploadCloud, FileUp, FileText, X, Link2 } from "lucide-react";
 import { PasscodeInput } from "@/components/PasscodeInput";
@@ -10,6 +10,22 @@ import { toast } from "@/components/Toast";
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function formatCountdown(seconds: number): string {
+  if (seconds <= 0) return "Expired";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (days > 0) {
+    return `${days}d ${hours.toString().padStart(2, "0")}h ${minutes.toString().padStart(2, "0")}m ${secs.toString().padStart(2, "0")}s`;
+  }
+  if (hours > 0) {
+    return `${hours.toString().padStart(2, "0")}h ${minutes.toString().padStart(2, "0")}m ${secs.toString().padStart(2, "0")}s`;
+  }
+  return `${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 }
 
 const MAX_TEXT_BYTES = 512 * 1024;
@@ -58,6 +74,20 @@ export default function HomePage() {
   const [creatorSubject, setCreatorSubject] = useState("");
 
   const [selectedCardUrl, setSelectedCardUrl] = useState<string | null>(null);
+
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+      setCountdown(remaining);
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [expiresAt]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
@@ -182,6 +212,9 @@ export default function HomePage() {
       setGeneratedLinkIds(data.linkIds);
       setGeneratedLinks(links);
       setRevocationToken(data.revocationToken || null);
+      const activeTtl = typeof data.ttl === "number" ? data.ttl : ttl;
+      setExpiresAt(Date.now() + activeTtl * 1000);
+      setCountdown(activeTtl);
       setPasscode("");
       toast.success(
         data.linkIds.length > 1
@@ -226,6 +259,8 @@ export default function HomePage() {
       setGeneratedLinks([]);
       setRevocationToken(null);
       setPasscode("");
+      setExpiresAt(null);
+      setCountdown(null);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Link revocation failed.");
     } finally {
@@ -243,6 +278,8 @@ export default function HomePage() {
     setCreatorEmail("");
     setRevocationToken(null);
     setCreatorSubject("");
+    setExpiresAt(null);
+    setCountdown(null);
   }
 
 
@@ -371,7 +408,7 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* Body: Text Editor OR Cyber File Dropzone */}
+              {/* Body: Text Editor and File Dropzone */}
               {mode === "text" ? (
                 <>
                   <div className="relative flex h-[38dvh] min-h-56 sm:h-72 md:h-80 overflow-hidden font-mono text-xs sm:text-sm">
@@ -394,25 +431,6 @@ export default function HomePage() {
                       spellCheck={false}
                       className="flex-1 p-3 sm:p-3.5 bg-transparent text-neutral-200 placeholder-neutral-600 focus:outline-none resize-none leading-6 overflow-y-auto whitespace-pre font-mono selection:bg-emerald-950 selection:text-emerald-300 scheme-dark"
                     />
-                  </div>
-
-                  {/* Text Mode Footer: Drag file option & Attach button */}
-                  <div className="px-3.5 py-2.5 bg-neutral-950/90 border-t border-neutral-800/80 flex items-center justify-between text-xs select-none">
-                    <div className="flex items-center gap-2 text-[11px] text-neutral-500">
-                      <UploadCloud className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                      <span>Or drag & drop a file here</span>
-                      <span className="hidden sm:inline text-neutral-700">•</span>
-                      <span className="hidden sm:inline text-neutral-500">Max 1.0 MB</span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-emerald-300 border border-neutral-800 hover:border-neutral-700 text-[11px] font-medium transition cursor-pointer active:scale-95"
-                    >
-                      <Paperclip className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Attach file</span>
-                    </button>
                   </div>
                 </>
               ) : (
@@ -782,12 +800,27 @@ export default function HomePage() {
           <div className="space-y-5 py-2">
             <div className="p-4 sm:p-5 bg-emerald-950/30 border border-emerald-800/50 rounded-xl text-emerald-300 text-xs sm:text-sm flex gap-3.5 items-start">
               <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" />
-              <div className="space-y-1">
-                <p className="font-semibold text-emerald-200">
-                  {generatedLinks.length > 1
-                    ? `${generatedLinks.length} Zero-Knowledge Links Ready`
-                    : "Zero-Knowledge Link Generated"}
-                </p>
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-semibold text-emerald-200">
+                    {generatedLinks.length > 1
+                      ? `${generatedLinks.length} Zero-Knowledge Links Ready`
+                      : "Zero-Knowledge Link Generated"}
+                  </p>
+                  {countdown !== null && (
+                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-mono text-[11px] font-semibold tracking-wider shrink-0 ${countdown === 0
+                      ? "bg-red-950/80 border-red-700 text-red-300 animate-pulse"
+                      : countdown <= 60
+                        ? "bg-red-950/60 border-red-800/80 text-red-300 animate-pulse"
+                        : countdown <= 300
+                          ? "bg-amber-950/60 border-amber-800/80 text-amber-300"
+                          : "bg-emerald-950/80 border-emerald-700/60 text-emerald-300"
+                      }`}>
+                      <Clock className={`w-3.5 h-3.5 ${countdown <= 60 ? "text-red-400" : "text-emerald-400"} animate-pulse`} />
+                      <span>{countdown === 0 ? "EXPIRED" : `Expires in ${formatCountdown(countdown)}`}</span>
+                    </div>
+                  )}
+                </div>
                 <p className="text-xs text-emerald-400/90 leading-relaxed">
                   The key resides only in the URL fragment (<span className="font-mono">#k=...</span>)
                   and was never sent over HTTP.{" "}

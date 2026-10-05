@@ -16,7 +16,8 @@ import {
   User, Mail, Tag,
   FileText,
   FileCode2,
-  ChevronDown
+  ChevronDown,
+  Clock
 } from "lucide-react";
 import { PasscodeInput } from "@/components/PasscodeInput";
 import { toast } from "@/components/Toast";
@@ -26,6 +27,22 @@ import Link from "next/link";
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function formatCountdown(seconds: number): string {
+  if (seconds <= 0) return "Expired";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (days > 0) {
+    return `${days}d ${hours.toString().padStart(2, "0")}h ${minutes.toString().padStart(2, "0")}m ${secs.toString().padStart(2, "0")}s`;
+  }
+  if (hours > 0) {
+    return `${hours.toString().padStart(2, "0")}h ${minutes.toString().padStart(2, "0")}m ${secs.toString().padStart(2, "0")}s`;
+  }
+  return `${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 }
 
 interface DecryptedFile {
@@ -56,7 +73,8 @@ export default function RevealPage() {
 
   const [creator, setCreator] = useState<{ name?: string; email?: string; subject?: string } | null>(null);
 
-
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   useEffect(() => {
     async function checkMetadata() {
@@ -71,6 +89,10 @@ export default function RevealPage() {
           if (data.remainingStrikes !== undefined) {
             setRemainingStrikes(data.remainingStrikes);
           }
+          if (typeof data.ttlRemaining === "number" && data.ttlRemaining > 0) {
+            setExpiresAt(Date.now() + data.ttlRemaining * 1000);
+            setCountdown(data.ttlRemaining);
+          }
         }
         else {
           setExists(false);
@@ -84,6 +106,22 @@ export default function RevealPage() {
 
     checkMetadata();
   }, [id]);
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+      setCountdown(remaining);
+      if (remaining === 0) {
+        setExists(false);
+        setError("This secret has reached its expiration time limit and was destroyed.");
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [expiresAt]);
 
   async function handleReveal(e?: React.SubmitEvent) {
     if (e) e.preventDefault();
@@ -161,9 +199,7 @@ export default function RevealPage() {
         setSecretContent(plainText);
       }
 
-      if (burnOnRead) {
-        window.history.replaceState(null, "", window.location.pathname);
-      }
+      window.history.replaceState(null, "", window.location.pathname);
     } catch (err: unknown) {
       setError(
         err instanceof Error
@@ -282,17 +318,31 @@ export default function RevealPage() {
               <form onSubmit={handleReveal} className="space-y-6 py-2">
                 {/* Passcode Security Banner */}
                 <div className="p-4 sm:p-5 bg-neutral-950/90 border border-neutral-800 rounded-xl space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2 text-xs font-semibold text-neutral-200">
                       <KeyRound className="w-4 h-4 text-emerald-400" />
                       Passcode Protected Secret
                     </div>
-                    {remainingStrikes !== null && (
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-950/50 border border-amber-800/60 rounded-lg text-[11px] font-semibold text-amber-300">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                        {remainingStrikes} of 3 attempts left
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {countdown !== null && (
+                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-mono text-[11px] font-semibold tracking-wider ${
+                          countdown <= 60
+                            ? "bg-red-950/60 border-red-800 text-red-300 animate-pulse"
+                            : countdown <= 300
+                              ? "bg-amber-950/50 border-amber-800/80 text-amber-300"
+                              : "bg-neutral-900/90 border-neutral-800 text-neutral-300"
+                        }`}>
+                          <Clock className={`w-3.5 h-3.5 ${countdown <= 60 ? "text-red-400" : "text-emerald-400"} animate-pulse`} />
+                          <span>Expires in {formatCountdown(countdown)}</span>
+                        </div>
+                      )}
+                      {remainingStrikes !== null && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-950/50 border border-amber-800/60 rounded-lg text-[11px] font-semibold text-amber-300">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                          {remainingStrikes} of 3 attempts left
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <p className="text-xs text-neutral-400 leading-relaxed">
                     The sender protected this note with a 6-digit PIN.{" "}
@@ -347,10 +397,24 @@ export default function RevealPage() {
               <>
                 <div className="p-4 sm:p-5 bg-emerald-950/30 border border-emerald-800/40 rounded-xl text-emerald-300 text-xs sm:text-sm flex gap-3.5 items-start">
                   <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" />
-                  <div className="space-y-1">
-                    <p className="font-semibold text-emerald-200">
-                      {burnOnRead ? "Self-Destruction Warning" : "Reusable Link"}
-                    </p>
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <p className="font-semibold text-emerald-200">
+                        {burnOnRead ? "Self-Destruction Warning" : "Reusable Link"}
+                      </p>
+                      {countdown !== null && (
+                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-mono text-[11px] font-semibold tracking-wider shrink-0 ${
+                          countdown <= 60
+                            ? "bg-red-950/60 border-red-800 text-red-300 animate-pulse"
+                            : countdown <= 300
+                              ? "bg-amber-950/60 border-amber-800/80 text-amber-300"
+                              : "bg-emerald-950/80 border-emerald-700/60 text-emerald-300"
+                        }`}>
+                          <Clock className={`w-3.5 h-3.5 ${countdown <= 60 ? "text-red-400" : "text-emerald-400"} animate-pulse`} />
+                          <span>Expires in {formatCountdown(countdown)}</span>
+                        </div>
+                      )}
+                    </div>
                     <p className="text-xs text-emerald-300/80 leading-relaxed">
                       {burnOnRead
                         ? "Revealing this note triggers an atomic deletion request on our storage layer. Once decrypted, it will be wiped from memory and cannot be recovered."
@@ -478,7 +542,11 @@ export default function RevealPage() {
             <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] sm:text-xs text-neutral-500 pt-1 gap-2.5 text-center sm:text-left">
               <span className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
-                {burnOnRead ? "Ciphertext destroyed on server" : "Secret link valid until expiry"}
+                {burnOnRead
+                  ? "Ciphertext destroyed on server"
+                  : countdown !== null
+                    ? `Secret link valid until expiry (${formatCountdown(countdown)})`
+                    : "Secret link valid until expiry"}
               </span>
               <Link
                 href="/"
@@ -501,6 +569,12 @@ export default function RevealPage() {
                     DECRYPTED PAYLOAD (
                     {formatBytes(new Blob([secretContent || ""]).size)})
                   </span>
+                  {!burnOnRead && countdown !== null && (
+                    <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono text-emerald-400/90 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded">
+                      <Clock className="w-3 h-3" />
+                      {formatCountdown(countdown)}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
@@ -542,7 +616,11 @@ export default function RevealPage() {
             <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] sm:text-xs text-neutral-500 pt-1 gap-2.5 text-center sm:text-left">
               <span className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
-                {burnOnRead ? "Ciphertext destroyed on server" : "Secret link valid until expiry"}
+                {burnOnRead
+                  ? "Ciphertext destroyed on server"
+                  : countdown !== null
+                    ? `Secret link valid until expiry (${formatCountdown(countdown)})`
+                    : "Secret link valid until expiry"}
               </span>
               <Link
                 href="/"
