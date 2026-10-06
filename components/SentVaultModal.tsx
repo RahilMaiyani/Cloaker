@@ -163,7 +163,7 @@ export function SentVaultModal({ isOpen, onClose, onSelectCardUrl }: SentVaultMo
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200 font-mono" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200 font-mono" onClick={onClose}>
             <div className="w-full max-w-2xl max-h-[88dvh] bg-neutral-950 border border-neutral-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 {/* Header Bar */}
                 <div className="p-4 sm:p-5 border-b border-neutral-800/80 bg-neutral-900/60 flex items-center justify-between gap-3 select-none">
@@ -233,6 +233,7 @@ export function SentVaultModal({ isOpen, onClose, onSelectCardUrl }: SentVaultMo
                             const isRevoked = entry.status === "revoked";
                             const isBurned = entry.status === "burned";
                             const isActive = !isActuallyExpired && !isRevoked && !isBurned;
+                            const isMultiple = entry.urls.length > 1 || false;
                             return (
                                 <div
                                     key={entry.id}
@@ -309,19 +310,19 @@ export function SentVaultModal({ isOpen, onClose, onSelectCardUrl }: SentVaultMo
                                         <button
                                             type="button"
                                             disabled={isActuallyExpired || isRevoked || isBurned}
-                                            onClick={() => handleCopy(entry.urls[0] || "")}
+                                            onClick={() => handleCopy(entry.urls.join("\n") || "")}
                                             className="h-8 px-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 border border-neutral-800 text-neutral-200 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer active:scale-95"
                                             title="Copy Secret Link"
                                         >
-                                            {copiedUrl === entry.urls[0] ? (
+                                            {copiedUrl === entry.urls.join("\n") ? (
                                                 <Check className="w-3 h-3 text-emerald-400" />
                                             ) : (
                                                 <Copy className="w-3 h-3 text-neutral-400" />
                                             )}
-                                            <span>{copiedUrl === entry.urls[0] ? "Copied" : "Copy"}</span>
+                                            <span>{copiedUrl === entry.urls.join("\n") ? "Copied" : `Copy ${isMultiple ? 'All' : ''}`}</span>
                                         </button>
                                         {/* Card & QR Trigger */}
-                                        {onSelectCardUrl && entry.urls[0] && (
+                                        {onSelectCardUrl && entry.urls.join("\n") && (
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -369,10 +370,10 @@ export function SentVaultModal({ isOpen, onClose, onSelectCardUrl }: SentVaultMo
                 </div>
                 {/* Privacy Note Footer */}
                 <div className="p-3.5 bg-neutral-900/80 border-t border-neutral-800/80 flex items-center justify-between text-[11px] text-neutral-400 select-none">
-                    <span className="flex items-center gap-1.5">
+                    {/* <span className="flex items-center gap-1.5">
                         <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                         <span>Stored strictly on this device in localStorage. No payloads retained.</span>
-                    </span>
+                    </span> */}
                 </div>
             </div>
         </div>
